@@ -1,0 +1,134 @@
+---
+title: "p8122_yc4384_HW6"
+author: "yc4384_Yangyang_Chen"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Load necessary libraries
+library(readr)
+library(tidyverse)
+library(mediation)
+library(ggplot2)
+library(dagitty)
+library(ggdag)
+data <- read_csv("sim_data_bangladesh.csv")
+head(data)
+```
+
+## Question 1
+
+Define model
+```{r}
+# Outcome model with exposure-mediator interaction
+model_y_interaction <- lm(cognitive_raw ~ ln_mn_c * birthlength_c + female + approxage + protein_c, data = data)
+
+# Mediator model (no interaction needed for the mediator model)
+model_m <- lm(birthlength_c ~ ln_mn_c + female + approxage + protein_c, data = data)
+```
+
+Mediation Analysis
+```{r}
+# Perform mediation analysis with interaction
+mediation_result_interaction <- mediate(model.m = model_m, 
+                                        model.y = model_y_interaction, 
+                                        treat = "ln_mn_c", 
+                                        mediator = "birthlength_c", 
+                                        boot = TRUE, sims = 1000)
+
+# Summary of results
+summary(mediation_result_interaction)
+```
+
+Interpretation of Effects
+```{r}
+# Extract direct, indirect, and total effects
+cat("Natural Direct Effect:", mediation_result_interaction$d0, "\n")
+cat("Natural Indirect Effect:", mediation_result_interaction$z0, "\n")
+cat("Total Effect:", mediation_result_interaction$tau.coef, "\n")
+
+# Visualize results
+plot(mediation_result_interaction)
+```
+
+Therefore,
+
+* Natural Direct Effect: -0.2945451 
+
+* Natural Indirect Effect: -0.3545374 
+
+* Total Effect: -0.7461272 
+
+## Question 2
+
+### Interpretation of Effects
+
+1.	Natural Direct Effect (NDE): -0.2945451
+
+* This represents the portion of the effect of manganese exposure on child cognitive development that is not mediated by birth length (fetal growth). Specifically, for a one-unit increase in log-transformed manganese exposure (holding birth length constant), the cognitive development score decreases by approximately 0.29 units.
+
+2.	Natural Indirect Effect (NIE): -0.3545374
+
+* This represents the portion of the effect that is mediated through birth length. In other words, the cognitive development score decreases by approximately 0.35 units as a result of the effect of manganese exposure on birth length, which subsequently affects cognitive development.
+
+3.	Total Effect (TE): -0.7461272
+
+* The total effect represents the overall impact of manganese exposure on cognitive development. This combines both the direct and indirect effects, with the cognitive development score decreasing by approximately 0.75 units for a one-unit increase in manganese exposure.
+
+### Assumptions for Causal Interpretation
+
+To interpret these effects causally, No Unmeasured Confounding Assumptions must be hold:
+
+-	There should be no unmeasured confounders for:
+
+-	The relationship between exposure (`ln_mn_c`) and the outcome (`cognitive_raw`).
+
+-	The relationship between the exposure (`ln_mn_c`) and the mediator (`birthlength_c`).
+
+-	The relationship between the mediator (`birthlength_c`) and the outcome (`cognitive_raw`).
+
+Also, Positivity assumpion must be hold: Every level of exposure must have a positive probability across all levels of confounders,
+ensuring that causal effects can be properly estimated for all groups within the data.
+
+## Question 3
+
+### (a)
+
+```{r}
+# Create the DAG
+dag <- dagitty('dag {
+  "ln_mn_c" -> "birthlength_c"
+  "ln_mn_c" -> "cognitive_raw"
+  "birthlength_c" -> "cognitive_raw"
+  "approxage" -> "ln_mn_c"
+  "approxage" -> "birthlength_c"
+  "approxage" -> "cognitive_raw"
+  "protein_c" -> "birthlength_c"
+  "protein_c" -> "cognitive_raw"
+  "female" -> "birthlength_c"
+  "female" -> "cognitive_raw"
+  "birthweight" -> "cognitive_raw"
+  "ln_mn_c" -> "birthweight"
+  "birthweight" -> "birthlength_c"
+  }')
+
+# Plot the DAG
+plot(dag)
+```
+
+
+### (b) Does adjustment for birthweight lead to a violation of the fourth identifiability assumption? Why or why not?
+
+i. The Fourth Identifiability Assumption: This assumption states that there should be no unmeasured confounders for the mediator-outcome relationship conditional on the exposure and covariates (i.e.,  $Y_{a,m} \perp M^* | C$ ).
+	
+ii. Adjustment for birthweight (M*) could violate this assumption if:
+
+-	Birthweight is a collider: Conditioning on birthweight might open a backdoor path, introducing spurious associations between manganese exposure and cognitive development. This could bias the effect estimates.
+
+-	Birthweight and birth length are highly correlated: Adjusting for one mediator could interfere with the independent pathways through which the other mediator operates.
+
+-	Unmeasured confounders between birthweight and cognitive development: If such confounders exist, adjusting for birthweight would amplify bias because the assumption of no confounding would be violated.
